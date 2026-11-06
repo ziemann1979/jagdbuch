@@ -1,9 +1,9 @@
 /* Service Worker: App offline verfügbar machen + Kartenkacheln zwischenspeichern.
    Jagddaten laufen NICHT hierüber – die liegen in IndexedDB auf dem Gerät. */
-const SHELL = 'jagdbuch-shell-v1';
+const SHELL = 'jagdbuch-shell-v2';
 const TILES = 'tiles';
 const FILES = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest',
-  'lib/leaflet.js', 'lib/leaflet.css', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+  'leaflet.js', 'leaflet.css', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const TILE_HOSTS = ['arcgisonline.com', 'tile.openstreetmap.org', 'tile.opentopomap.org'];
 
 self.addEventListener('install', e => {

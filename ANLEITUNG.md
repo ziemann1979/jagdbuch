@@ -13,8 +13,7 @@ Auf dieser Adresse liegt nur der Programmcode – **keine deiner Daten**.
 **Empfohlen: GitHub Pages**
 1. Auf https://github.com ein kostenloses Konto anlegen.
 2. Oben rechts auf **+ → New repository** klicken, Name z. B. `jagdbuch`, auf **Public** stellen, dann **Create repository**.
-3. Auf **uploading an existing file** klicken und den **Inhalt** dieses Ordners hineinziehen
-   (index.html, app.js, styles.css, sw.js, manifest.webmanifest sowie die Ordner `lib` und `icons`), dann **Commit changes**.
+3. Auf **uploading an existing file** klicken, alle 11 Dateien dieses Ordners markieren (Strg+A) und hineinziehen, dann **Commit changes**.
 4. **Settings → Pages**: Bei Source **Deploy from a branch** wählen, dann Branch `main` und `/ (root)` → **Save**.
 5. Nach 1–2 Minuten ist die App erreichbar unter `https://DEINNAME.github.io/jagdbuch/`
 
