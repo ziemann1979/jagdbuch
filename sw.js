@@ -1,6 +1,6 @@
 /* Service Worker: App offline verfügbar machen + Kartenkacheln zwischenspeichern.
    Jagddaten laufen NICHT hierüber – die liegen in IndexedDB auf dem Gerät. */
-const SHELL = 'jagdbuch-shell-v3';
+const SHELL = 'jagdbuch-shell-v4';
 const TILES = 'tiles';
 const FILES = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest',
   'leaflet.js', 'leaflet.css', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
