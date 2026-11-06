@@ -149,3 +149,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
 .wa-row .grow{flex:1}
 .wa-row button{border:0;background:none;font-size:18px;padding:2px 6px}
 .wa-row.hid .grow{color:var(--muted);text-decoration:line-through}
+
+/* Reviergrenzen */
+#drawmap{position:absolute;inset:0}
+.draw-tools{position:absolute;z-index:600;left:10px;right:10px;bottom:calc(var(--safe-b) + 70px);display:flex;gap:8px}
+.draw-tools .btn{flex:1;background:rgba(20,26,20,.95);padding:9px 4px;font-size:14px}
+.vtx{width:22px;height:22px;border-radius:50%;background:#ffd34d;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.7)}
+.vtx.first{background:#ff3b30}
+.vtx.mid{width:18px;height:18px;background:rgba(255,255,255,.55);border:2px solid #ffd34d}
+.leaflet-tooltip.rv-label{background:rgba(0,0,0,.55);border:0;box-shadow:none;color:#fff;font-weight:700;font-size:13px;padding:2px 8px;border-radius:6px}
+.leaflet-tooltip.rv-label::before{display:none}

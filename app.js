@@ -3,7 +3,7 @@
    Alle Daten liegen ausschließlich lokal auf dem Gerät (IndexedDB).
    Es gibt keinen Server und keine Übertragung – nur die Kartenbilder werden geladen. */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const BACKUP_FORMAT = 1;
 
 /* ---------------- Stammdaten ---------------- */
@@ -204,6 +204,11 @@ function openForm({ title, fields, values={}, onSave, onDelete, deleteLabel='Lö
       case 'photos':
         st[f.key] = { ids:(v||[]).slice(), added:[], removed:[], cache:{} };
         html.push(`<div class="field"><span>${esc(f.label)}</span><div class="photos" data-photos="${f.key}"></div><div class="hint">Fotos werden verkleinert in der App gespeichert, damit sie beim Gerätewechsel im Backup mitwandern.</div></div>`); break;
+      case 'boundary':
+        st[f.key] = Array.isArray(v) && v.length ? v.map(r => r.map(p => [...p])) : null;
+        html.push(`<div class="field"><span>${esc(f.label)}</span><div class="pos" data-bnd="${f.key}"><div class="val"></div>
+          <div class="btnrow"><button type="button" class="btn" data-f="draw">✏️ Zeichnen</button><button type="button" class="btn" data-f="imp">📂 Import</button><button type="button" class="btn" data-f="clr">✕</button></div>
+          <input type="file" hidden></div><div class="hint">Import: KML (Google Earth), GPX oder GeoJSON. Beim Zeichnen kannst du die Grenze auch ablaufen und GPS-Punkte setzen.</div></div>`); break;
       default: html.push(`<label class="field">${lab}<input type="text" name="${f.key}" value="${esc(v)}" placeholder="${esc(f.ph||'')}"></label>`);
     }
   }
@@ -220,6 +225,27 @@ function openForm({ title, fields, values={}, onSave, onDelete, deleteLabel='Lö
       if (b.dataset.f === 'gps'){ b.disabled = true; b.textContent = '⏳'; try { const p = await getGPS(); st[key] = { lat:p.lat, lng:p.lng }; renderPos(key); toast(`Position übernommen (± ${Math.round(p.acc)} m)`); } catch(err){ toast(err.message); } b.disabled = false; b.textContent = '📍 GPS'; }
       if (b.dataset.f === 'map'){ const p = await pickPosition(st[key]); if (p){ st[key] = p; renderPos(key); } }
     });
+  }
+  // Grenzfelder
+  const renderBnd = key => { const el = $(`[data-bnd="${key}"] .val`, form), g = st[key];
+    el.innerHTML = g && g.length ? `${g.length} Fläche${g.length > 1 ? 'n' : ''} · ${g.reduce((a,r) => a + r.length, 0)} Punkte · <b>${fmtArea(g)}</b>` : '<span class="muted">keine Grenze eingezeichnet</span>'; };
+  for (const el of $$('[data-bnd]', form)){
+    const key = el.dataset.bnd; renderBnd(key);
+    el.addEventListener('click', async e => {
+      const b = e.target.closest('[data-f]'); if (!b) return;
+      if (b.dataset.f === 'clr'){ if (st[key] && !confirm('Reviergrenze entfernen?')) return; st[key] = null; renderBnd(key); }
+      if (b.dataset.f === 'draw'){ const r = await drawBoundary(st[key], values.id); if (r){ st[key] = r.length ? r : null; renderBnd(key); } }
+      if (b.dataset.f === 'imp') $('input[type=file]', el).click();
+    });
+    $('input[type=file]', el).onchange = async ev => {
+      const file = ev.target.files[0]; ev.target.value = ''; if (!file) return;
+      try {
+        const rings = parseBoundaryFile(await file.text());
+        if (!rings.length){ toast('Keine Fläche in der Datei gefunden'); return; }
+        const r = await drawBoundary(rings, values.id, `${rings.length} Fläche(n) aus „${file.name}“ – prüfen und „Fertig“ tippen`);
+        if (r){ st[key] = r.length ? r : null; renderBnd(key); }
+      } catch(err){ toast('Import fehlgeschlagen: ' + err.message); }
+    };
   }
   // Fotofelder
   const renderPhotos = async key => {
@@ -264,7 +290,7 @@ function openForm({ title, fields, values={}, onSave, onDelete, deleteLabel='Lö
     for (const f of fields){
       if (!f.key) continue;
       const el = form.querySelector(`[name="${f.key}"]`);
-      if (f.type === 'position') out[f.key] = st[f.key];
+      if (f.type === 'position' || f.type === 'boundary') out[f.key] = st[f.key];
       else if (f.type === 'photos') out[f.key] = st[f.key];
       else if (f.type === 'check') out[f.key] = el.checked;
       else if (f.type === 'number') out[f.key] = num(el.value);
@@ -285,13 +311,18 @@ async function commitPhotos(ph){
 /* ---------------- Entitäten: Formulare ---------------- */
 function editRevier(r={}){
   openForm({ title: r.id ? 'Revier bearbeiten' : 'Neues Revier', values:r,
-    fields:[ {key:'name',label:'Name',ph:'z. B. Eigenjagd Hagen-Nord'}, {key:'land',label:'Land / Region',ph:'z. B. Deutschland, Namibia, Belarus'}, {key:'notiz',label:'Notizen',type:'textarea'} ],
-    onSave: async v => { if (!v.name){ toast('Bitte einen Namen eingeben'); return false; } await save('reviere', { ...r, ...v }); },
+    fields:[ {key:'name',label:'Name',ph:'z. B. Eigenjagd Hagen-Nord'}, {key:'land',label:'Land / Region',ph:'z. B. Deutschland, Namibia, Belarus'},
+      {key:'grenzen',label:'Reviergrenze',type:'boundary'}, {key:'notiz',label:'Notizen',type:'textarea'} ],
+    onSave: async v => {
+      if (!v.name){ toast('Bitte einen Namen eingeben'); return false; }
+      const o = await save('reviere', { ...r, ...v, grenzen: v.grenzen || [] });
+      if (o.grenzen.length && !(r.grenzen && r.grenzen.length)) setTimeout(() => showRevierOnMap(o.id), 50);
+    },
     onDelete: r.id ? async () => { await remove('reviere', r.id); } : null });
 }
 async function editHochsitz(h={}, pos){
   const near = pos || null;
-  const values = { typ:'Hochsitz', revierId: S.settings.lastRevier || '', ...h, pos: h.id ? { lat:h.lat, lng:h.lng } : near };
+  const values = { typ:'Hochsitz', revierId: revierAt(near) || S.settings.lastRevier || '', ...h, pos: h.id ? { lat:h.lat, lng:h.lng } : near };
   openForm({ title: h.id ? 'Hochsitz bearbeiten' : 'Neuer Hochsitz', values,
     fields:[ {key:'name',label:'Name / Nummer',ph:'z. B. Kanzel am Buchenhang'}, {key:'typ',label:'Art',type:'select',options:HS_TYPES},
       {key:'revierId',label:'Revier',type:'revier'}, {key:'pos',label:'Position',type:'position'},
@@ -306,7 +337,7 @@ async function editHochsitz(h={}, pos){
 }
 async function editAbschuss(a={}, pre={}){
   const ph = a.id ? null : lastFix;
-  const values = { zeit: nowLocal(), revierId: S.settings.lastRevier || '', ...pre, ...a,
+  const values = { zeit: nowLocal(), revierId: revierAt(pre.pos) || S.settings.lastRevier || '', ...pre, ...a,
     pos: a.id ? (a.lat != null ? { lat:a.lat, lng:a.lng } : null) : (pre.pos || null) };
   openForm({ title: a.id ? 'Abschuss bearbeiten' : 'Abschuss erfassen', values,
     fields:[
@@ -332,7 +363,7 @@ async function editAbschuss(a={}, pre={}){
     onDelete: a.id ? async () => { for (const id of a.fotos||[]) await dbDel('fotos', id); await remove('abschuesse', a.id); } : null });
 }
 function editSichtung(s={}, pre={}){
-  const values = { zeit: nowLocal(), anzahl:1, revierId: S.settings.lastRevier || '', ...pre, ...s,
+  const values = { zeit: nowLocal(), anzahl:1, revierId: revierAt(pre.pos) || S.settings.lastRevier || '', ...pre, ...s,
     pos: s.id ? (s.lat != null ? { lat:s.lat, lng:s.lng } : null) : (pre.pos || null) };
   openForm({ title: s.id ? 'Sichtung bearbeiten' : 'Sichtung erfassen', values,
     fields:[
@@ -397,7 +428,7 @@ function initMap(){
   const v = S.settings.mapView || { lat:51.36, lng:7.47, z:12 };   // Start: Raum Hagen
   map = L.map('map', { zoomControl:false, tapHold:true }).setView([v.lat, v.lng], v.z);
   setBase(S.settings.baseLayer || 'sat');
-  groups.hs = L.layerGroup().addTo(map); groups.ab = L.layerGroup().addTo(map); groups.si = L.layerGroup().addTo(map);
+  groups.rv = L.layerGroup().addTo(map); groups.hs = L.layerGroup().addTo(map); groups.ab = L.layerGroup().addTo(map); groups.si = L.layerGroup().addTo(map);
   map.on('moveend', () => { const c = map.getCenter(); setSetting('mapView', { lat:c.lat, lng:c.lng, z:map.getZoom() }); });
   map.on('contextmenu', e => addMenu({ lat:e.latlng.lat, lng:e.latlng.lng }, 'An dieser Stelle'));
   $('#btn-layer').onclick = () => { const i = LAYER_ORDER.indexOf(S.settings.baseLayer || 'sat'); setBase(LAYER_ORDER[(i+1) % LAYER_ORDER.length]); };
@@ -417,8 +448,10 @@ function setBase(key){
 }
 function filterMenu(){
   const f = S.settings.mapFilter || { hs:true, ab:true, si:true };
+  if (f.rv === undefined) f.rv = true;
   const lab = (k, n) => `${f[k] ? '✓' : '○'}  ${n}`;
   actionSheet('Auf der Karte anzeigen', [
+    { label:lab('rv','Reviergrenzen'), fn:() => toggle('rv') },
     { label:lab('hs','Hochsitze'), fn:() => toggle('hs') },
     { label:lab('ab','Abschüsse'), fn:() => toggle('ab') },
     { label:lab('si','Sichtungen'), fn:() => toggle('si') } ]);
@@ -429,6 +462,11 @@ function renderMap(){
   if (!map) return;
   const f = S.settings.mapFilter || { hs:true, ab:true, si:true };
   Object.values(groups).forEach(g => g.clearLayers());
+  if (f.rv !== false) S.reviere.forEach((r, i) => { if (!r.grenzen?.length) return;
+    const col = RV_COLORS[i % RV_COLORS.length];
+    L.polygon(r.grenzen, { color:col, weight:3, opacity:.95, fillColor:col, fillOpacity:.08, interactive:false }).addTo(groups.rv)
+      .bindTooltip(esc(r.name), { permanent:true, direction:'center', className:'rv-label' });
+  });
   if (f.si) for (const s of S.sichtungen) if (s.lat != null){
     L.marker([s.lat, s.lng], { icon:mkIcon('mk-si', s.anzahl > 1 ? s.anzahl : '', 20) }).addTo(groups.si)
       .bindPopup(`<div class="pop"><h4>${esc(s.wildart)}${s.anzahl > 1 ? ` (${s.anzahl})` : ''}</h4><div class="muted">${fmtDT(s.zeit)}${s.details ? ' · ' + esc(s.details) : ''}</div><div class="row"><button class="btn" data-act="si" data-id="${s.id}">Öffnen</button></div></div>`);
@@ -471,6 +509,117 @@ function preFromAnsitz(act, pos){
   if (!act) return { pos };
   const h = find('hochsitze', act.hochsitzId);
   return { pos: pos || (h ? { lat:h.lat, lng:h.lng } : null), hochsitzId:act.hochsitzId, revierId:act.revierId || h?.revierId || '', keep:{ ansitzId:act.id } };
+}
+
+/* ---------------- Reviergrenzen ---------------- */
+const RV_COLORS = ['#ffd34d','#ff8c42','#4dd0e1','#e57cff','#9be564','#ff5c8a'];
+function ringArea(ring){ if (ring.length < 3) return 0; const R = 6371008.8, t = Math.PI/180; let s = 0;
+  for (let i = 0; i < ring.length; i++){ const [la1, lo1] = ring[i], [la2, lo2] = ring[(i+1) % ring.length]; s += (lo2 - lo1) * t * (2 + Math.sin(la1*t) + Math.sin(la2*t)); }
+  return Math.abs(s * R * R / 2); }
+function fmtArea(rings){ const m2 = rings.reduce((a, r) => a + ringArea(r), 0);
+  return m2 >= 1e6 ? `${(m2/1e6).toLocaleString('de-DE',{maximumFractionDigits:2})} km² (${Math.round(m2/1e4).toLocaleString('de-DE')} ha)` : `${(m2/1e4).toLocaleString('de-DE',{maximumFractionDigits:1})} ha`; }
+function inRing(p, ring){ let ins = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++){ const [yi, xi] = ring[i], [yj, xj] = ring[j];
+    if (((yi > p.lat) !== (yj > p.lat)) && (p.lng < (xj - xi) * (p.lat - yi) / (yj - yi) + xi)) ins = !ins; }
+  return ins; }
+function revierAt(p){ if (!p || p.lat == null) return ''; const r = S.reviere.find(r => (r.grenzen || []).some(g => inRing(p, g))); return r ? r.id : ''; }
+function showRevierOnMap(id){ const r = find('reviere', id); if (!r?.grenzen?.length) return; if (sheetCfg) closeSheet(); showView('karte');
+  setTimeout(() => map.fitBounds(L.latLngBounds(r.grenzen.flat()), { padding:[30,30] }), 80); }
+function simplify(pts, tolM){
+  if (pts.length < 4) return pts;
+  const k = 111320, cos = Math.cos(pts[0][0] * Math.PI / 180);
+  const xy = pts.map(([la, lo]) => [lo * k * cos, la * k]);
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length-1] = 1;
+  const stack = [[0, pts.length-1]];
+  while (stack.length){ const [a, b] = stack.pop(); let md = 0, mi = -1;
+    const [ax, ay] = xy[a], [bx, by] = xy[b], dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy;
+    for (let i = a + 1; i < b; i++){ const [px, py] = xy[i]; let t = L2 ? ((px-ax)*dx + (py-ay)*dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(px - ax - t*dx, py - ay - t*dy); if (d > md){ md = d; mi = i; } }
+    if (md > tolM){ keep[mi] = 1; stack.push([a, mi], [mi, b]); } }
+  return pts.filter((_, i) => keep[i]);
+}
+function parseBoundaryFile(text){
+  const rings = []; const t = text.trim();
+  const ll = ([x, y]) => [y, x];
+  if (t.startsWith('{') || t.startsWith('[')){
+    const visit = g => { if (!g) return;
+      if (g.type === 'FeatureCollection') g.features.forEach(f => visit(f.geometry));
+      else if (g.type === 'Feature') visit(g.geometry);
+      else if (g.type === 'GeometryCollection') g.geometries.forEach(visit);
+      else if (g.type === 'Polygon') rings.push(g.coordinates[0].map(ll));
+      else if (g.type === 'MultiPolygon') g.coordinates.forEach(pg => rings.push(pg[0].map(ll)));
+      else if (g.type === 'LineString') rings.push(g.coordinates.map(ll)); };
+    visit(JSON.parse(t));
+  } else {
+    const doc = new DOMParser().parseFromString(t, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('Datei nicht lesbar');
+    const tags = (el, n) => [...el.getElementsByTagNameNS('*', n)];
+    const kml = s => s.trim().split(/\s+/).map(c => c.split(',').map(Number)).filter(a => a.length >= 2 && !isNaN(a[0]) && !isNaN(a[1])).map(ll);
+    tags(doc, 'outerBoundaryIs').forEach(ob => { const c = tags(ob, 'coordinates')[0]; if (c) rings.push(kml(c.textContent)); });
+    if (!rings.length) tags(doc, 'LineString').forEach(ls => { const c = tags(ls, 'coordinates')[0]; if (c) rings.push(kml(c.textContent)); });
+    const gpx = el => [+el.getAttribute('lat'), +el.getAttribute('lon')];
+    if (!rings.length) tags(doc, 'trkseg').forEach(sg => rings.push(tags(sg, 'trkpt').map(gpx)));
+    if (!rings.length) tags(doc, 'rte').forEach(r => rings.push(tags(r, 'rtept').map(gpx)));
+  }
+  if (rings.some(r => r.some(([la, lo]) => Math.abs(la) > 90 || Math.abs(lo) > 180))) throw new Error('Koordinaten sind nicht in WGS84 (z. B. UTM). Bitte als KML oder GPX exportieren.');
+  return rings.map(r => { if (r.length > 1){ const a = r[0], b = r[r.length-1]; if (a[0] === b[0] && a[1] === b[1]) r = r.slice(0, -1); } return simplify(r, 1.5); }).filter(r => r.length >= 3);
+}
+let drawMap, drawBase, drawLayer, drawCtx, drawState;
+function drawBoundary(rings, revierId, hint){
+  return new Promise(res => {
+    $('#drawer').classList.remove('hidden');
+    if (!drawMap){
+      drawMap = L.map('drawmap', { zoomControl:false });
+      drawCtx = L.layerGroup().addTo(drawMap); drawLayer = L.layerGroup().addTo(drawMap);
+      drawMap.on('click', e => drawState?.add([e.latlng.lat, e.latlng.lng]));
+    }
+    if (drawBase) drawMap.removeLayer(drawBase);
+    drawBase = makeBase(S.settings.baseLayer || 'sat').addTo(drawMap);
+    drawCtx.clearLayers();   // Umgebung: andere Reviere & Hochsitze
+    S.reviere.forEach(r => { if (r.id !== revierId && r.grenzen?.length) L.polygon(r.grenzen, { color:'#ffffff', weight:1.5, dashArray:'6 6', fillOpacity:0, interactive:false }).addTo(drawCtx); });
+    S.hochsitze.forEach(h => L.marker([h.lat, h.lng], { icon:mkIcon('mk-hs', '🪜', 24), interactive:false }).addTo(drawCtx));
+    const Rg = (rings || []).map(r => r.map(p => [...p])); if (!Rg.length) Rg.push([]);
+    let cur = Rg.length - 1;
+    const vIcon = first => L.divIcon({ className:'', html:`<div class="vtx${first ? ' first' : ''}"></div>`, iconSize:[22,22], iconAnchor:[11,11] });
+    const info = $('#draw-info');
+    const redraw = () => {
+      drawLayer.clearLayers();
+      Rg.forEach((ring, ri) => {
+        const active = ri === cur;
+        let shape = null;
+        if (ring.length >= 2) shape = L.polygon(ring, { color: active ? '#ffd34d' : '#c9a227', weight: active ? 3 : 2, fillOpacity:.15, interactive:false }).addTo(drawLayer);
+        if (!active || ring.length > 400) return;
+        ring.forEach((p, i) => {
+          const m = L.marker(p, { draggable:true, icon:vIcon(i === 0), zIndexOffset:1000 }).addTo(drawLayer);
+          m.on('drag', e => { ring[i] = [e.latlng.lat, e.latlng.lng]; shape?.setLatLngs(ring); });
+          m.on('dragend', redraw);
+          m.on('click', () => { if (confirm('Diesen Punkt löschen?')){ ring.splice(i, 1); redraw(); } });
+        });
+        if (ring.length >= 3) ring.forEach((p, i) => { const q = ring[(i+1) % ring.length], mp = [(p[0]+q[0])/2, (p[1]+q[1])/2];
+          L.marker(mp, { icon:L.divIcon({ className:'', html:'<div class="vtx mid"></div>', iconSize:[18,18], iconAnchor:[9,9] }), zIndexOffset:900 })
+            .addTo(drawLayer).on('click', () => { ring.splice(i+1, 0, mp); redraw(); }); });
+      });
+      const ring = Rg[cur];
+      info.textContent = hint && ring.length ? hint : ring.length === 0 ? 'Auf die Karte tippen, um Grenzpunkte zu setzen' :
+        `${Rg.length > 1 ? `Fläche ${cur+1} von ${Rg.length} · ` : ''}${ring.length} Punkte${ring.length >= 3 ? ' · ' + fmtArea([ring]) : ''}${ring.length > 400 ? ' · zu viele Punkte zum Verschieben' : ''}`;
+      hint = null;
+    };
+    drawState = { add: p => { Rg[cur].push(p); redraw(); } };
+    const all = Rg.flat();
+    setTimeout(() => { drawMap.invalidateSize();
+      if (all.length) drawMap.fitBounds(L.latLngBounds(all), { padding:[40,40] });
+      else { const c = map ? map.getCenter() : { lat:51.36, lng:7.47 }; drawMap.setView([c.lat, c.lng], map ? Math.max(map.getZoom(), 14) : 14); }
+    }, 50);
+    redraw();
+    const done = v => { drawState = null; $('#drawer').classList.add('hidden'); res(v); };
+    $('#draw-cancel').onclick = () => done(null);
+    $('#draw-ok').onclick = () => { if (Rg.some(r => r.length > 0 && r.length < 3) && !confirm('Flächen mit weniger als 3 Punkten werden verworfen. Fertig?')) return; done(Rg.filter(r => r.length >= 3)); };
+    $('#draw-undo').onclick = () => { if (Rg[cur].length) Rg[cur].pop(); else if (Rg.length > 1){ Rg.splice(cur, 1); cur = Rg.length - 1; } redraw(); };
+    $('#draw-gps').onclick = async () => { const b = $('#draw-gps'); b.textContent = '⏳';
+      try { const p = await getGPS(); Rg[cur].push([p.lat, p.lng]); drawMap.panTo([p.lat, p.lng]); redraw(); toast(`GPS-Punkt gesetzt (± ${Math.round(p.acc)} m)`, null, null, 1500); } catch(e){ toast(e.message); }
+      b.textContent = '📍 GPS-Punkt'; };
+    $('#draw-new').onclick = () => { if (Rg[cur].length < 3){ toast('Die aktuelle Fläche braucht mindestens 3 Punkte'); return; } Rg.push([]); cur = Rg.length - 1; redraw(); };
+  });
 }
 
 /* Positionswahl */
@@ -658,7 +807,7 @@ async function renderMehr(){
       <div class="btnrow" style="margin-top:10px"><button class="btn" data-m="csv-ab">CSV Abschüsse</button><button class="btn" data-m="csv-si">CSV Sichtungen</button></div>
     </div>
     <h2>Reviere</h2>
-    <div class="list">${S.reviere.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(r => `<button class="item" data-act="rv" data-id="${r.id}"><div class="grow"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.land||'')}</div></div><div class="r">${S.hochsitze.filter(h=>h.revierId===r.id).length} Sitze</div></button>`).join('') || '<div class="empty">Noch kein Revier</div>'}</div>
+    <div class="list">${S.reviere.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(r => `<button class="item" data-act="rv" data-id="${r.id}"><div class="grow"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.land||'')}</div></div><div class="r">${S.hochsitze.filter(h=>h.revierId===r.id).length} Sitze${r.grenzen?.length ? '<br>' + fmtArea(r.grenzen) : ''}</div></button>`).join('') || '<div class="empty">Noch kein Revier</div>'}</div>
     <button class="btn block" data-m="rv-add">＋ Revier anlegen</button>
     <h2>Hochsitze & Einrichtungen</h2>
     <div class="list">${S.hochsitze.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(h => `<button class="item" data-act="hs-info" data-id="${h.id}"><span class="dot" style="background:var(--brown)"></span><div class="grow"><div class="t">${esc(h.name)}</div><div class="s">${esc([h.typ, find('reviere',h.revierId)?.name].filter(Boolean).join(' · '))}</div></div></button>`).join('') || '<div class="empty">Noch keine Hochsitze – auf der Karte lange drücken oder ＋ antippen.</div>'}</div>

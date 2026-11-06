@@ -34,6 +34,16 @@ Auf dieser Adresse liegt nur der Programmcode – **keine deiner Daten**.
 - **Strecke**: Alle Abschüsse, filterbar nach Jagdjahr, Wildart und Revier, mit Summen.
 - **Mehr**: Reviere (auch im Ausland), Wildarten verwalten (★ = Schnelltaste), Datensicherung, Offline-Karte.
 
+## Reviergrenzen
+Unter **Mehr → Revier antippen** (oder neu anlegen) findest du das Feld **Reviergrenze**:
+- **✏️ Zeichnen:** Tippe die Eckpunkte nacheinander auf die Karte. Punkte lassen sich verschieben, durch Antippen löschen,
+  und über die hellen Zwischenpunkte fügst du neue ein. Mit **📍 GPS-Punkt** kannst du die Grenze auch ablaufen.
+  Mit **＋ Teilfläche** legst du getrennte Flächen an (z. B. eine Pachtfläche, die nicht am Revier anschließt).
+- **📂 Import:** Hier lädst du eine KML-Datei (z. B. aus Google Earth), eine GPX-Datei oder eine GeoJSON-Datei.
+  Die Fläche in Hektar wird automatisch berechnet.
+- Über 👁️ auf der Karte kannst du die Grenzen ein- und ausblenden.
+- Neue Hochsitze, Abschüsse und Sichtungen innerhalb einer Grenze bekommen automatisch das passende Revier.
+
 ## 4. Datensicherung & neues iPhone ⚠️ wichtig
 - **Mehr → Sicherung erstellen** erzeugt eine Datei mit *allen* Daten inklusive Fotos.
   Speichere sie mit **In „Dateien“ sichern** in iCloud Drive oder auf „Auf meinem iPhone“.
