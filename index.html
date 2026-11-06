@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jagdbuch">
+<meta name="theme-color" content="#121612">
+<title>Jagdbuch</title>
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="banner" class="banner hidden"></div>
+  <main id="views">
+    <section id="v-karte" class="view active">
+      <div id="map"></div>
+      <div class="map-ctrl top-right">
+        <button class="mbtn" id="btn-layer" title="Kartenart">🗺️</button>
+        <button class="mbtn" id="btn-filter" title="Anzeigen">👁️</button>
+        <button class="mbtn" id="btn-locate" title="Mein Standort">📍</button>
+      </div>
+      <div id="layer-label" class="layer-label"></div>
+      <button class="fab" id="btn-add" title="Neu">＋</button>
+    </section>
+    <section id="v-ansitz" class="view scroll"></section>
+    <section id="v-strecke" class="view scroll"></section>
+    <section id="v-mehr" class="view scroll"></section>
+  </main>
+  <nav id="tabs">
+    <button data-view="karte" class="active"><span>🗺️</span>Karte</button>
+    <button data-view="ansitz"><span>🪜</span>Ansitz</button>
+    <button data-view="strecke"><span>🦌</span>Strecke</button>
+    <button data-view="mehr"><span>⚙️</span>Mehr</button>
+  </nav>
+</div>
+
+<div id="sheet" class="sheet hidden">
+  <header>
+    <button id="sheet-cancel" class="link">Abbrechen</button>
+    <h2 id="sheet-title"></h2>
+    <button id="sheet-save" class="link strong">Speichern</button>
+  </header>
+  <div id="sheet-body" class="sheet-body"></div>
+</div>
+
+<div id="picker" class="picker hidden">
+  <div id="pickmap"></div>
+  <div class="crosshair"></div>
+  <div class="picker-top">Karte verschieben, bis das Kreuz auf der Stelle liegt</div>
+  <div class="picker-bar">
+    <button id="pick-cancel" class="btn">Abbrechen</button>
+    <button id="pick-gps" class="btn">📍 GPS</button>
+    <button id="pick-ok" class="btn primary">Übernehmen</button>
+  </div>
+</div>
+
+<div id="actions" class="actions hidden"><div class="actions-box"></div></div>
+<div id="photo-view" class="photo-view hidden"><img alt=""><div class="photo-meta"></div></div>
+<div id="toast" class="toast hidden"></div>
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+
+<script src="lib/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
