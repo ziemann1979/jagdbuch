@@ -7,7 +7,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
   font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
-body{position:fixed;top:0;left:0;right:0;height:var(--app-h,100%);overflow:hidden}
+body{position:fixed;inset:0;overflow:hidden}
 button{font:inherit;color:inherit}
 .hidden{display:none!important}
 #app{position:absolute;inset:0;display:flex;flex-direction:column}

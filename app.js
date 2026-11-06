@@ -3,7 +3,7 @@
    Alle Daten liegen ausschließlich lokal auf dem Gerät (IndexedDB).
    Es gibt keinen Server und keine Übertragung – nur die Kartenbilder werden geladen. */
 
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const BACKUP_FORMAT = 1;
 
 /* ---------------- Stammdaten ---------------- */
@@ -986,15 +986,6 @@ function renderBanner(){
 }
 
 /* ---------------- Start ---------------- */
-function fixHeight(){
-  // iOS-Fehler: Mit durchsichtiger Statusleiste fehlt unten die Höhe der Statusleiste.
-  if (!(isIOS() && isStandalone())) return;
-  const portrait = matchMedia('(orientation: portrait)').matches;
-  const h = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-  document.documentElement.style.setProperty('--app-h', h + 'px');
-  if (map) setTimeout(() => map.invalidateSize(), 50);
-}
-fixHeight(); addEventListener('resize', fixHeight); addEventListener('orientationchange', () => setTimeout(fixHeight, 300));
 
 (async function init(){
   try { await loadAll(); }
